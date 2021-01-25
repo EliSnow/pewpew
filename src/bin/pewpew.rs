@@ -18,6 +18,7 @@ fn main() {
         }
     }
     if atty::isnt(atty::Stream::Stdout) {
+        // Disable output if we don't have one?
         Paint::disable();
     }
     let filter_reg = Regex::new("^(.*?)(!=|=)(.*)").expect("is a valid regex");
@@ -151,6 +152,7 @@ fn main() {
         )
         .get_matches();
 
+    // QUESTION: Catches Ctrl-C ?
     let (ctrl_c_tx, ctrlc_channel) = futures_channel::unbounded();
 
     let _ = ctrlc::set_handler(move || {
@@ -158,10 +160,12 @@ fn main() {
     });
 
     let cli_config = if let Some(matches) = matches.subcommand_matches("run") {
+        // Set the config file path
         let config_file: PathBuf = matches
             .value_of("CONFIG")
             .expect("should have CONFIG param")
             .into();
+        // Set the resuls-directory path (if there is one/Option)
         let results_dir = matches.value_of_os("results-directory").map(|d| {
             create_dir_all(d).unwrap();
             PathBuf::from(d)
@@ -172,10 +176,12 @@ fn main() {
                 .expect("should have output_format cli arg"),
         )
         .expect("output_format cli arg unrecognized");
+        // Why value_of_os instead of value_of?
         let stats_file = matches
             .value_of_os("stats-file")
             .map(PathBuf::from)
             .unwrap_or_else(|| {
+                // Create the stats-file path if it wasn't provided
                 let start_sec = UNIX_EPOCH
                     .elapsed()
                     .map(|d| d.as_secs())
@@ -188,6 +194,7 @@ fn main() {
                 };
                 PathBuf::from(file)
             });
+        // Add the results_dir path to the stats-file if we have it
         let stats_file = if let Some(results_dir) = &results_dir {
             let mut file = results_dir.clone();
             file.push(stats_file);
@@ -197,6 +204,7 @@ fn main() {
         };
         let stats_file_format = StatsFileFormat::Json;
         let watch_config_file = matches.is_present("watch");
+        // Optional --start-at
         let start_at = matches
             .value_of("start-at")
             .map(|s| duration_from_string(s.to_string()).expect("start_at should match pattern"));
@@ -209,6 +217,7 @@ fn main() {
             stats_file_format,
             watch_config_file,
         };
+        // return
         ExecConfig::Run(run_config)
     } else if let Some(matches) = matches.subcommand_matches("try") {
         let config_file: PathBuf = matches
@@ -264,6 +273,7 @@ fn main() {
             config_file,
             results_dir,
         };
+        // return
         ExecConfig::Try(try_config)
     } else {
         unreachable!();
@@ -271,6 +281,7 @@ fn main() {
 
     let f = create_run(cli_config, ctrlc_channel, io::stdout(), io::stderr());
 
+    // QUESTION: What is this doing?
     let mut rt = runtime::Builder::new()
         .threaded_scheduler()
         .enable_time()
